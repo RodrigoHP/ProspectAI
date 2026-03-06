@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Lead, SearchParams } from "@/types";
 import { Button } from "./ui/button";
 import {
@@ -10,13 +10,11 @@ import {
   Phone,
   Globe,
   Star,
-  Clock,
   AlertCircle,
   CheckCircle2,
   ExternalLink,
 } from "lucide-react";
 import Markdown from "react-markdown";
-import { GoogleGenAI } from "@google/genai";
 
 interface LeadDetailProps {
   lead: Lead;
@@ -30,64 +28,39 @@ export function LeadDetail({ lead, searchParams, onBack }: LeadDetailProps) {
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
-  useEffect(() => {
-    const fetchReport = async () => {
-      try {
-        setIsLoading(true);
-        const ai = new GoogleGenAI({ apiKey: process.env.NEXT_PUBLIC_GEMINI_API_KEY });
-        
-        const reportPrompt = `
-          Você é um consultor de vendas B2B especialista em IA.
-          O usuário está tentando vender o seguinte serviço: "${searchParams.service}".
-          
-          Aqui estão os dados do lead (empresa):
-          Nome: ${lead.name}
-          Endereço: ${lead.address}
-          Avaliação: ${lead.rating} (${lead.userRatingCount} avaliações)
-          Website: ${lead.websiteUri ? 'Sim' : 'Não'}
-          Telefone: ${lead.nationalPhoneNumber ? 'Sim' : 'Não'}
-          Tipos: ${lead.types?.join(', ')}
-          
-          Avaliações recentes:
-          ${lead.reviews?.map((r: any) => `- ${r.rating} estrelas: "${r.text?.text}"`).join('\n') || 'Nenhuma avaliação detalhada disponível.'}
-          
-          Gere um relatório de oportunidade de vendas completo em formato Markdown (pt-BR).
-          O relatório DEVE conter as seguintes seções (use headers h2 ##):
-          
-          ## Diagnóstico Digital
-          (Analise o que está faltando ou fraco na presença online deles com base nos dados acima)
-          
-          ## Análise de Avaliações
-          (Resumo do sentimento das avaliações e reclamações comuns, se houver)
-          
-          ## Por que esta empresa precisa de IA
-          (Conecte as dores específicas deles com o serviço de IA oferecido pelo usuário)
-          
-          ## Abordagem de Vendas Sugerida
-          (Como o usuário deve abordar este lead, o que dizer na primeira mensagem/ligação)
-          
-          ## Impacto Estimado
-          (O que a IA poderia melhorar para eles em termos de negócios/faturamento/tempo)
-        `;
+  const fetchReport = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
 
-        const reportResponse = await ai.models.generateContent({
-          model: "gemini-3.1-pro-preview",
-          contents: reportPrompt,
-        });
+      const response = await fetch("/api/report", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lead, searchParams }),
+      });
 
-        setReport(reportResponse.text || "Relatório não gerado.");
-      } catch (err: any) {
-        console.error("Report error:", err);
-        setError(
-          err.message || "Ocorreu um erro ao gerar o relatório de IA. Tente novamente.",
-        );
-      } finally {
-        setIsLoading(false);
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Erro ao gerar relatório.");
       }
-    };
 
-    fetchReport();
+      const data = await response.json();
+      setReport(data.report || "Relatório não gerado.");
+    } catch (err: unknown) {
+      console.error("Report error:", err);
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Ocorreu um erro ao gerar o relatório de IA. Tente novamente.",
+      );
+    } finally {
+      setIsLoading(false);
+    }
   }, [lead, searchParams]);
+
+  useEffect(() => {
+    fetchReport();
+  }, [fetchReport]);
 
   const copyToClipboard = () => {
     if (report) {
@@ -239,9 +212,10 @@ export function LeadDetail({ lead, searchParams, onBack }: LeadDetailProps) {
                 <p className="font-medium">{error}</p>
                 <Button
                   variant="outline"
-                  onClick={() => window.location.reload()}
+                  onClick={fetchReport}
+                  disabled={isLoading}
                 >
-                  Tentar Novamente
+                  {isLoading ? "Tentando..." : "Tentar Novamente"}
                 </Button>
               </div>
             ) : report ? (

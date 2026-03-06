@@ -1,7 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { BRAZILIAN_STATES } from "@/lib/constants";
+import { SearchParamsSchema, SearchParamsInput } from "@/lib/validations";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Textarea } from "./ui/textarea";
@@ -14,14 +16,25 @@ interface SearchFormProps {
 }
 
 export function SearchForm({ onSearch, isLoading }: SearchFormProps) {
-  const [icp, setIcp] = useState("");
-  const [service, setService] = useState("");
-  const [state, setState] = useState("SP");
-  const [city, setCity] = useState("");
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<SearchParamsInput>({
+    resolver: zodResolver(SearchParamsSchema),
+    defaultValues: {
+      state: "SP",
+      city: "",
+    },
+  });
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    onSearch({ icp, service, state, city });
+  const onSubmit = (data: SearchParamsInput) => {
+    onSearch({
+      icp: data.icp,
+      service: data.service,
+      state: data.state,
+      city: data.city ?? "",
+    });
   };
 
   return (
@@ -35,19 +48,20 @@ export function SearchForm({ onSearch, isLoading }: SearchFormProps) {
         </p>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
         <div className="space-y-2">
           <label className="text-sm font-medium text-slate-700 flex items-center gap-2">
             <Target className="w-4 h-4 text-blue-500" />
             Descreva seu ICP (Perfil de Cliente Ideal)
           </label>
           <Textarea
-            required
-            value={icp}
-            onChange={(e) => setIcp(e.target.value)}
+            {...register("icp")}
             placeholder="Ex: Clínicas odontológicas com 3+ anos, faturamento médio, presença digital fraca"
             className="resize-none"
           />
+          {errors.icp && (
+            <p className="text-sm text-rose-600">{errors.icp.message}</p>
+          )}
         </div>
 
         <div className="space-y-2">
@@ -56,12 +70,13 @@ export function SearchForm({ onSearch, isLoading }: SearchFormProps) {
             Qual serviço você oferece?
           </label>
           <Textarea
-            required
-            value={service}
-            onChange={(e) => setService(e.target.value)}
+            {...register("service")}
             placeholder="Ex: Sistemas de IA para automação de atendimento e agendamento via WhatsApp"
             className="resize-none"
           />
+          {errors.service && (
+            <p className="text-sm text-rose-600">{errors.service.message}</p>
+          )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -71,8 +86,7 @@ export function SearchForm({ onSearch, isLoading }: SearchFormProps) {
               Estado
             </label>
             <select
-              value={state}
-              onChange={(e) => setState(e.target.value)}
+              {...register("state")}
               className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2"
             >
               <option value="Todo o Brasil">Todo o Brasil</option>
@@ -82,16 +96,21 @@ export function SearchForm({ onSearch, isLoading }: SearchFormProps) {
                 </option>
               ))}
             </select>
+            {errors.state && (
+              <p className="text-sm text-rose-600">{errors.state.message}</p>
+            )}
           </div>
           <div className="space-y-2">
             <label className="text-sm font-medium text-slate-700">
               Cidade (Opcional)
             </label>
             <Input
-              value={city}
-              onChange={(e) => setCity(e.target.value)}
+              {...register("city")}
               placeholder="Ex: São Paulo"
             />
+            {errors.city && (
+              <p className="text-sm text-rose-600">{errors.city.message}</p>
+            )}
           </div>
         </div>
 
@@ -103,7 +122,11 @@ export function SearchForm({ onSearch, isLoading }: SearchFormProps) {
           >
             {isLoading ? (
               <span className="flex items-center gap-2">
-                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                <div
+                  className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"
+                  aria-label="Buscando leads..."
+                  role="status"
+                />
                 Buscando Leads...
               </span>
             ) : (
@@ -114,7 +137,7 @@ export function SearchForm({ onSearch, isLoading }: SearchFormProps) {
             )}
           </Button>
           <p className="text-center text-xs text-slate-400 mt-3">
-            Busca alimentada pelo Google Maps via Gemini AI (Gratuito)
+            Busca alimentada pelo Google Maps via Gemini AI
           </p>
         </div>
       </form>
